@@ -1,12 +1,7 @@
 import "isomorphic-unfetch";
+import { URLSearchParams } from "url";
 import _ from "lodash";
-import * as QueryString from "query-string";
-import {
-  API_BASE_MAINNET,
-  API_BASE_TESTNET,
-  API_PATH,
-  ORDERBOOK_PATH,
-} from "./constants";
+import { API_BASE_MAINNET, API_BASE_TESTNET, API_PATH } from "./constants";
 import {
   BuildOfferResponse,
   FulfillmentDataResponse,
@@ -158,7 +153,7 @@ export class OpenSeaAPI {
     protocolAddress: string,
     side: OrderSide
   ): Promise<FulfillmentDataResponse> {
-    let payload = null;
+    let payload: object | null = null;
     if (side === "ask") {
       payload = getFulfillListingPayload(
         fulfillerAddress,
@@ -270,22 +265,6 @@ export class OpenSeaAPI {
     );
 
     return !!json.success;
-  }
-
-  /**
-   * Get which version of Wyvern exchange to use to create orders
-   * Simply return null in case API doesn't give us a good response
-   */
-  public async getOrderCreateWyvernExchangeAddress(): Promise<string | null> {
-    try {
-      const result = await this.get(`${ORDERBOOK_PATH}/exchange/`);
-      return result as string;
-    } catch (error) {
-      this.logger(
-        "Couldn't retrieve Wyvern exchange address for order creation"
-      );
-      return null;
-    }
   }
 
   /**
@@ -430,8 +409,9 @@ export class OpenSeaAPI {
    * @param query Data to send. Will be stringified using QueryString
    */
   public async get<T>(apiPath: string, query: object = {}): Promise<T> {
-    const qs = QueryString.stringify(query);
+    const qs = this.objectToSearchParams(query);
     const url = `${apiPath}?${qs}`;
+    console.log(url);
 
     const response = await this._fetch(url);
     return response.json();
@@ -477,6 +457,20 @@ export class OpenSeaAPI {
     });
   }
 
+  private objectToSearchParams(params: object = {}) {
+    const urlSearchParams = new URLSearchParams();
+
+    Object.entries(params).forEach(([key, value]) => {
+      if (value && Array.isArray(value)) {
+        value.forEach((item) => item && urlSearchParams.append(key, item));
+      } else if (value) {
+        urlSearchParams.append(key, value);
+      }
+    });
+
+    return urlSearchParams.toString();
+  }
+
   /**
    * Get from an API Endpoint, sending auth token in headers
    * @param apiPath Path to URL endpoint under API
@@ -490,6 +484,7 @@ export class OpenSeaAPI {
       ...opts,
       headers: {
         ...(apiKey ? { "X-API-KEY": apiKey } : {}),
+        "x-app-id": "opensea-js",
         ...(opts.headers || {}),
       },
     };
